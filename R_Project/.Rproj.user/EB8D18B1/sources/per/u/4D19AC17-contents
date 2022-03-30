@@ -1,5 +1,0 @@
-map("worldHires", xlim=c(-63.12,-63.11), ylim=c(46.005,46.01), col="grey", fill=TRUE, resolution=0);map.axes();
-map.scale(ratio=FALSE) # do you want a scale?
-samps <- read.xlsx("C:/Users/Gagnondj/Documents/Covid/Collecteurs/Collecteur 2020/NMC2_positions.xlsx", 1)
-points(samps$lon, samps$lat, pch=19, col="red", cex=0.5)
-text(samps$lon,samps$lat, labels=samps$id,cex=.5,adj=0)
