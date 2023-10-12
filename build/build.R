@@ -4,7 +4,7 @@ year = 2021
 #get metadata file
 setwd("C:/Users/Gagnondj/Documents/GitHub/Temperature_monitoring/data/Raw/")
 y <- read.csv("119_info_2019_R.csv")
-y <- y[y$year == 2021,]
+y <- y[y$year == year,]
 
 #Set working directory for files to be bind together into one file
 #setwd("C:/Users/Gagnondj/Documents/GitHub/Temperature_monitoring/data/Raw/Minilog/")
