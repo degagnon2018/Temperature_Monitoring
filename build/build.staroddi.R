@@ -9,7 +9,10 @@ folder_path <- "C:/Users/Gagnondj/Documents/GitHub/Temperature_monitoring/data/R
 #get metadata file
 setwd("C:/Users/Gagnondj/Documents/GitHub/Temperature_monitoring/data/Raw/")
 y <- read.csv("Temp.lookup_R.csv")
-y <- y[y$year == year,]
+y <- y[y$year == year & !is.na(y$year),]
+
+# #convert serial.number to lower case
+y$serial.number <- tolower(y$serial.number)
 
 #Change some of the variable names in y
 str <- names(y)
@@ -22,7 +25,7 @@ y$lookup.sites <- sub(",.*", "", y$lookup.sites)
 
 #Set working directory for files to be bind together into one file
 #setwd("C:/Users/Gagnondj/Documents/GitHub/Temperature_monitoring/data/Raw/Minilog/")
-setwd(paste0("C:/Users/Gagnondj/Documents/GitHub/Temperature_monitoring/data/Raw/to process 2/"))
+setwd("C:/Users/Gagnondj/Documents/GitHub/Temperature_monitoring/data/Raw/to_process/")
 
 # list of the names of the files in the working directory
 files = list.files()
@@ -35,7 +38,7 @@ if (length(files) > 0) {
     
     
     #temp
-   #file <- "Cape Egmont collecteurs 2022  S11837.xlsx"
+   #file <- "North Cape PEI 2022 DS S11191.xlsx"
     
     # # Remove the file extension
     file_name <- sub("\\.(csv|xlsx)$", "", file)  
@@ -55,12 +58,15 @@ if (length(files) > 0) {
     print(site_name)
     
     #extracts the last word of the file name (serial number)
-    serial.number <- sub("^.* ([A-Za-z0-9]+)$", "\\1", file_name) 
+    serial.number <- sub("^.* ([A-Za-z0-9]+)$", "\\1", file_name)
+    
+    #convert serial.number to all lower caps
+    serial.number <- tolower(serial.number)
     
     #site <- gsub(paste0("[", serial.number, "]"), "", site_name)
     
     # Read the CSV file where the serial number starts with either S or T (Star Oddi DST CT or Starmon Mini)
-    if (grepl("^[ST]", serial.number)) {
+    if (grepl("^[st]", serial.number, ignore.case = TRUE)) {
     
       if (grepl("\\.csv$", file)) {
         # Read CSV file
@@ -99,7 +105,7 @@ if (length(files) > 0) {
      df$day <- day(df$date)
 
     #add recorder type to recorder variable
-    if (grepl("^S", serial.number)) {
+    if (grepl("^s", serial.number, ignore.case = TRUE)) {
       
       #Change some of the variable names
       str <- names(df)
@@ -116,7 +122,7 @@ if (length(files) > 0) {
       vars <- c("recorder",	"serial.number",	"site",	"site.depth.m",	"surface.bottom",	"log.depth.m",	"latitude",	
                 "longitude",	"year",	"month",	"day",	"date",	"time",	"temperature", "salinity.psu", "conduct.ms.cm", "sound.velocity.m.sec")
       
-    } else if (grepl("^T", serial.number)) {
+    } else if (grepl("^t", serial.number, ignore.case = TRUE)) {
       
       #Change some of the variable names
       str <- names(df)
@@ -137,8 +143,7 @@ if (length(files) > 0) {
       # df$recorder <- "Some Other Value"
     }
     
-    
-     
+  
     #merge the temperature dataframe with the lookup file data
     z <- merge(x=df,y=y, by.x=c("year", "serial.number", "site"), by.y=c("year", "serial.number", "lookup.sites"), all.x=TRUE)
     
@@ -147,12 +152,12 @@ if (length(files) > 0) {
     z <- z[vars]
     
     #check if match was successful for z merge
-    if (is.na(z$site)) {
+    if (all(is.na(z$site))) {
       # If the 'z$site' is NA in the merged data frame, it means there were no matches
       cat(paste0(unique(df$site), " - No matches found, check lookup file.\n"))
     } else {
       # If 'z$site' has values, it means there were matches
-      cat(paste0(unique(df$site), "Matches found.\n"))
+      cat(paste0(unique(df$site), " Matches found.\n"))
     }
     
     #sort by date, time

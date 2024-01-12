@@ -1,14 +1,20 @@
+#read.minilog() doesn't run on over R 4.0
+
 library(gulf.data)
 library(lubridate)
 year = 2022
+write.path <- "C:/Users/Gagnondj/Documents/GitHub/Temperature_monitoring/data/Raw/processed/"
 
 #get metadata file
 setwd("C:/Users/Gagnondj/Documents/GitHub/Temperature_monitoring/data/Raw/")
 y <- read.csv("Temp.lookup_R.csv")
-y <- y[y$year == year,]
 
-#Set working directory for files to be bind together into one file
-setwd(paste0("C:/Users/Gagnondj/Documents/GitHub/Temperature_monitoring/data/Raw/to process 2/"))
+# Subset to only include rows for year = year and where "year" is not NA
+y <- y[y$year == year & !is.na(y$year),]
+
+# #Set working directory for files to be bind together into one file
+setwd("C:/Users/Gagnondj/Documents/GitHub/Temperature_monitoring/data/Raw/to_process/")
+# #setwd(paste0("W:\\Lobster\\Donnees de Temperature\\Temperature monitoring program\\2022\\CCG\\csv"))
 
 #only keep the csv files
 lst <- list.files(full.names = TRUE, pattern = "\\.csv$", all.files = FALSE)
@@ -19,9 +25,11 @@ print(lst)
 
   x <- read.minilog(lst)
   
-  #keeps last 6 character of header.Source Device to be used for serial number
+  # Extract the serial number from x$header.source.device
   sn <- x$header.source.device
-  x$serial.number <- substr(sn,(nchar(sn)+1)-6,nchar(sn))
+  
+  # Use regular expressions to match the last sequence of digits
+  x$serial.number <- gsub("[^0-9]", "", sn)
   
   #convert x$date into a date format 
   x$date <- as.Date(x$date, format = "%Y-%m-%d")
@@ -60,7 +68,7 @@ print(lst)
     z.subset <- subset(z, z$serial.number == sn[i])
     #excel(z, file = as.character(unique(z$site)))
     file.name <- unique(paste(z.subset$site, z.subset$buoy.id, z.subset$surface.bottom, z.subset$year, z.subset$serial.number, "_processed.csv"))
-    write.csv(z.subset, paste("C:/Users/Gagnondj/Documents/GitHub/Temperature_monitoring/data/Raw/processed//", file.name), row.names = FALSE)
+    write.csv(z.subset, paste(write.path, file.name), row.names = FALSE)
     print(unique(file.name))
       }
   
