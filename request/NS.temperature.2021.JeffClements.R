@@ -5,22 +5,32 @@ library(gulf.data)
 library(dplyr)
 library(stringr)
 
-years <- 2021
+# Clear all objects from the environment
+rm(list = ls())
+
+min.year <- 1996
+max.year <- 2021
 
 ## Establish connection to Access database
 channel <- odbcConnectAccess2007("C:/Users/Gagnondj/Documents/Database/Temperature_be.mdb")
 
+All.temp <- sqlFetch(channel, "All Data")
+
 #view tables in db
 subset(sqlTables(channel), TABLE_TYPE == "TABLE") 
 
-# SQL query to fetch records for years of interest
-query <- paste0("SELECT * FROM [All Data] WHERE Year = ", years)
+# 
+# # SQL query to fetch records for years of interest
+# query <- paste0("SELECT * FROM [All Data] WHERE Year BETWEEN ", min(years), " AND ", max(years))
+# 
+# 
+# # Fetch data using sqlQuery
+# temperature <- sqlQuery(channel, query)
 
-# Fetch data using sqlQuery
-temperature <- sqlQuery(channel, query)
+odbcClose(channel)
 
 #processing temperatures
-temperature <- temperature %>%
+temperature <- All.temp %>%
   select( #keep only needed fields and rename them
     site = `Site (text)`,
     site.depth.meters = `Site Depth(m)`,
@@ -36,9 +46,10 @@ temperature <- temperature %>%
     temperature = Temperature,
   ) %>%
   mutate(site = str_trim(site)) %>% # trim for extra spaces
+  filter(year >= min.year & year <= max.year) %>% # filter for years between min.year and max.year
   filter(str_detect(site, "N\\.S\\.$"))  %>% #only keep site in Nova Scotia
   mutate(
     time = format(as.POSIXct(time, format = "%H:%M:%S"), "%H:%M:%S") #format time field
   )
 
-odbcClose(channel)
+write.csv(temperature, file = paste0("request/NS.temperature.N.S.csv"), row.names = FALSE)
