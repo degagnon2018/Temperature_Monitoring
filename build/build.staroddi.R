@@ -1,5 +1,6 @@
 library(gulf.data)
 library(openxlsx)
+library(lubridate)
 
 #this code only deals with Star Oddi or Starmon temperature recorders
 
@@ -14,13 +15,13 @@ y <- y[y$year == year & !is.na(y$year),]
 # #convert serial.number to lower case
 y$serial.number <- tolower(y$serial.number)
 
-#Change some of the variable names in y
+# #Change some of the variable names in y
 str <- names(y)
-str[str == "ï..site"] <- "lookup.sites"
+str[str == "site"] <- "lookup.sites"
 names(y) <- str
 
 #keep only site name without province
-y$site <- y$lookup.sites
+ y$site <- y$lookup.sites
 y$lookup.sites <- sub(",.*", "", y$lookup.sites)
 
 #Set working directory for files to be bind together into one file
@@ -38,7 +39,7 @@ if (length(files) > 0) {
     
     
     #temp
-   #file <- "North Cape PEI 2022 DS S11191.xlsx"
+   # file <- "North Cape PEI 2022 DS S11191.xlsx"
     
     # # Remove the file extension
     file_name <- sub("\\.(csv|xlsx)$", "", file)  
@@ -49,7 +50,7 @@ if (length(files) > 0) {
     # Extract the site_name
     parts <- strsplit(file, "\\s+")
     site_name <- unlist(parts)[!unlist(parts) %in% excluded_words]
-    site_name <- paste(site_name[1:(which(site_name == "2022") - 1)], collapse = " ")
+    site_name <- paste(site_name[1:(which(site_name %in% year) - 1)], collapse = " ")
     
     # Trim any leading or trailing spaces
     site_name <- trimws(site_name)
@@ -81,17 +82,22 @@ if (length(files) > 0) {
     # Find the column containing date and time information (star oddi)
     date_time_col <- grep("(?i)date.*time", names(df), value = TRUE)
     
-     if (length(date_time_col) > 0) {
-    #   # Extract date and time components
-       df$date <- as.Date(df[[date_time_col]], origin = "1899-12-30")
-       #df$time <- format(as.POSIXct(df[[date_time_col]] * 86400, origin = "1970-01-01", tz = "Halifax"), "%I:%M:%S %p")
-       #rounding to closest second to get data to show at every 30 minutes exactly
-       df$time <- format(round(as.POSIXct(df[[date_time_col]] * 86400, origin = "1970-01-01"), units = "secs"), "%I:%M:%S %p")
-    #   
-    #   # Remove the original date/time column
-    #   df <- df[, -which(names(df) == date_time_col)]
-     }
-    # 
+    df$datetime <- as.POSIXct(df[[date_time_col]] * 86400, origin = "1899-12-30", tz = "UTC")
+
+    # Loop through each datetime and adjust if the seconds are 59
+    for (i in 1:nrow(df)) {
+      if (as.integer(format(df$datetime[i], "%S")) == 59) {
+        # Add one second to adjust the time
+        df$datetime[i] <- df$datetime[i] + 1
+      }
+    }
+    
+    # Extract the date part as a separate column
+    df$date <- as.Date(df$datetime)
+    
+    # Extract the time part as a separate column, formatted as %I:%M:%S %p
+    df$time <- format(df$datetime, "%I:%M:%S %p")
+    
     #make all variable names lower case
     names(df) <- tolower(names(df))
     

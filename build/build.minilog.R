@@ -6,24 +6,22 @@ year = 2022
 write.path <- "C:/Users/Gagnondj/Documents/GitHub/Temperature_monitoring/data/Raw/processed/"
 
 #get metadata file
-setwd("C:/Users/Gagnondj/Documents/GitHub/Temperature_monitoring/data/Raw/")
-y <- read.csv("Temp.lookup_R.csv")
+y <- read.csv("data/Raw/Temp.lookup_R.csv")
 
 # Subset to only include rows for year = year and where "year" is not NA
 y <- y[y$year == year & !is.na(y$year),]
 
 # #Set working directory for files to be bind together into one file
 setwd("C:/Users/Gagnondj/Documents/GitHub/Temperature_monitoring/data/Raw/to_process/")
-# #setwd(paste0("W:\\Lobster\\Donnees de Temperature\\Temperature monitoring program\\2022\\CCG\\csv"))
 
 #only keep the csv files
-lst <- list.files(full.names = TRUE, pattern = "\\.csv$", all.files = FALSE)
+lst <- list.files(full.names = FALSE, pattern = "\\.csv$", all.files = FALSE)
 
 #only keep the files for minilogs, which are those with serial numbers of 6 digits
 lst <- lst[grepl("\\d{6}\\.csv$", lst)]
 print(lst)
 
-  x <- read.minilog(lst)
+  x <- read.minilog("Cape Georges NS 2022 VU2 358420.csv")
   
   # Extract the serial number from x$header.source.device
   sn <- x$header.source.device
