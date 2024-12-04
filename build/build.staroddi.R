@@ -1,37 +1,50 @@
+#######################################################################################################
+## Code to process raw  star-Oddi or Starmon temperature recorder files                             ###
+## Code will process files In the "to_process" folder, there should not be any folders, just the     ##
+## files to be processed.                                                                           ###
+#######################################################################################################
+
 library(gulf.data)
 library(openxlsx)
 library(lubridate)
+library(dplyr)
+library(readxl)
 
-#this code only deals with Star Oddi or Starmon temperature recorders
+# set year of files to be processed
+year = 2023
 
-year = 2022
+# generated files will be in this folder
 folder_path <- "C:/Users/Gagnondj/Documents/GitHub/Temperature_monitoring/data/Raw/processed/"
 
-#get metadata file
+# get metadata file
 setwd("C:/Users/Gagnondj/Documents/GitHub/Temperature_monitoring/data/Raw/")
-y <- read.csv("Temp.lookup_R.csv")
+y <- read.csv("data/Raw/Temp.lookup_R.csv")
 y <- y[y$year == year & !is.na(y$year),]
 
-# #convert serial.number to lower case
+# convert serial.number to lower case
 y$serial.number <- tolower(y$serial.number)
 
-# #Change some of the variable names in y
-str <- names(y)
-str[str == "site"] <- "lookup.sites"
-names(y) <- str
-
-#keep only site name without province
- y$site <- y$lookup.sites
+# create a lookup.site column
+y$lookup.sites <- y$site
 y$lookup.sites <- sub(",.*", "", y$lookup.sites)
 
 #Set working directory for files to be bind together into one file
-#setwd("C:/Users/Gagnondj/Documents/GitHub/Temperature_monitoring/data/Raw/Minilog/")
 setwd("C:/Users/Gagnondj/Documents/GitHub/Temperature_monitoring/data/Raw/to_process/")
 
 # list of the names of the files in the working directory
 files = list.files()
 files
 
+# file names in the working directory are validated to insure the year in it's name
+# if the year is not in one of the file name, the script will stop and print an error message
+# if the year is in all the file names, the script will give a positive message and continue
+if (length(files) > 0) {
+  if (all(grepl(year, files))) {
+    print("All files have the year in their name")
+  } else {
+    stop("Not all files have the year in their name")
+  }
+}
 
 if (length(files) > 0) {
   # Read CSV files and extract site, SN, and date/time information
@@ -39,7 +52,7 @@ if (length(files) > 0) {
     
     
     #temp
-   # file <- "North Cape PEI 2022 DS S11191.xlsx"
+    file <- "Indian Rocks PEI 2023 N8 S11248.xlsx"
     
     # # Remove the file extension
     file_name <- sub("\\.(csv|xlsx)$", "", file)  
@@ -64,9 +77,7 @@ if (length(files) > 0) {
     #convert serial.number to all lower caps
     serial.number <- tolower(serial.number)
     
-    #site <- gsub(paste0("[", serial.number, "]"), "", site_name)
-    
-    # Read the CSV file where the serial number starts with either S or T (Star Oddi DST CT or Starmon Mini)
+    # Read the file where the serial number starts with either S or T (Star Oddi DST CT or Starmon Mini)
     if (grepl("^[st]", serial.number, ignore.case = TRUE)) {
     
       if (grepl("\\.csv$", file)) {
@@ -75,31 +86,46 @@ if (length(files) > 0) {
         print(file)
       } else if (grepl("\\.xlsx$", file)) {
         # Read Excel file using readxl package
-        df <- read.xlsx(file)
+        df <- read_xlsx(file) 
         print(file)
-        }    
+      }    
       
-    # Find the column containing date and time information (star oddi)
-    date_time_col <- grep("(?i)date.*time", names(df), value = TRUE)
+      #make all variable names lower case
+      names(df) <- tolower(names(df))
+      
+      # For files with serial numbers starting with 'S'
+      if (grepl("^s", serial.number, ignore.case = TRUE)) {  
     
-    df$datetime <- as.POSIXct(df[[date_time_col]] * 86400, origin = "1899-12-30", tz = "UTC")
-
-    # Loop through each datetime and adjust if the seconds are 59
-    for (i in 1:nrow(df)) {
-      if (as.integer(format(df$datetime[i], "%S")) == 59) {
-        # Add one second to adjust the time
-        df$datetime[i] <- df$datetime[i] + 1
+        # Find the column containing date and time information (star oddi)
+        date_time_col <- grep("(?i)date.*time", names(df), value = TRUE)
+    
+        # df$datetime <- as.POSIXct(df[[date_time_col]] * 86400, origin = "1899-12-30", tz = "UTC")
+        # 
+        # # Loop through each datetime and adjust if the seconds are 59
+        # for (i in 1:nrow(df)) {
+        #   if (as.integer(format(df$datetime[i], "%S")) == 59) {
+        #     # Add one second to adjust the time
+        #     df$datetime[i] <- df$datetime[i] + 1
+        #   }
+        # }
+        # 
+        # # Extract the date part as a separate column
+        # df$date <- as.Date(df$datetime)
+        
+        # Create date and time columns
+        df <- df %>%
+          mutate(
+            date = format(`date & time`, "%Y-%m-%d"),
+            time = format(`date & time`, "%I:%M:%S %p")
+          )
+        
+      } else if (grepl("^t", serial.number, ignore.case = TRUE)) {
+        
+        # format date
+        df$date <- as.Date(df$date)
       }
-    }
     
-    # Extract the date part as a separate column
-    df$date <- as.Date(df$datetime)
-    
-    # Extract the time part as a separate column, formatted as %I:%M:%S %p
-    df$time <- format(df$datetime, "%I:%M:%S %p")
-    
-    #make all variable names lower case
-    names(df) <- tolower(names(df))
+
     
     #add serial number and site name to appropriate variables
     df$serial.number <- serial.number
@@ -118,7 +144,7 @@ if (length(files) > 0) {
       str[str == "temp.â.c." | str == "temp(°c)"] <- "temperature"
       str[str == "salinity.psu." | str == "salinity(psu)"] <- "salinity.psu"
       str[str == "conduct.ms.cm." | str == "conduct(ms/cm)"] <- "conduct.ms.cm"
-      str[str == "sound.velocity.m.sec." | str == "sound.velocity(m/sec)"] <- "sound.velocity.m.sec"
+      str[str == "sound.velocity.m.sec." | str == "sound velocity(m/sec)"] <- "sound.velocity.m.sec"
       names(df) <- str
       
       #populate recorder variable
@@ -126,7 +152,7 @@ if (length(files) > 0) {
       
       #setting variables to include in output later in code
       vars <- c("recorder",	"serial.number",	"site",	"site.depth.m",	"surface.bottom",	"log.depth.m",	"latitude",	
-                "longitude",	"year",	"month",	"day",	"date",	"time",	"temperature", "salinity.psu", "conduct.ms.cm", "sound.velocity.m.sec")
+                "longitude",	"year",	"month",	"day",	"date",	"time",	"temperature", "salinity.psu", "conduct.ms.cm", "sound.velocity.m.sec", "buoy.id")
       
     } else if (grepl("^t", serial.number, ignore.case = TRUE)) {
       
@@ -149,10 +175,12 @@ if (length(files) > 0) {
       # df$recorder <- "Some Other Value"
     }
     
-  
+     # only keep data for the year being processed, some files may have multi-year data.
+     df <- df[df$year == year, ]
+
     #merge the temperature dataframe with the lookup file data
     z <- merge(x=df,y=y, by.x=c("year", "serial.number", "site"), by.y=c("year", "serial.number", "lookup.sites"), all.x=TRUE)
-    
+
     #keep only wanted variables and in the order wanted
     z$site <- z$site.y
     z <- z[vars]
@@ -160,17 +188,21 @@ if (length(files) > 0) {
     #check if match was successful for z merge
     if (all(is.na(z$site))) {
       # If the 'z$site' is NA in the merged data frame, it means there were no matches
-      cat(paste0(unique(df$site), " - No matches found, check lookup file.\n"))
+      cat(paste0(unique(df$site), " - ******* No matches found, check lookup file.\n"))
     } else {
       # If 'z$site' has values, it means there were matches
       cat(paste0(unique(df$site), " Matches found.\n"))
     }
     
-    #sort by date, time
-    z <- z[order(z$date, z$time),]
+    # Combine date and time into a datetime object for operations (correct sorting)
+    z$datetime_for_operations <- as.POSIXct(paste(z$date, z$time), format="%Y-%m-%d %I:%M:%S %p")
     
-    #remove the x variable that appeared in the dataframe
-    #df <- df[, -which(names(df) == "x")]
+    # Arrange chronological
+    z <- arrange(z, datetime_for_operations)
+    
+    # drop datetime_for_operations column after sort
+    z <- z %>%
+      select(-datetime_for_operations) 
     
     # Write the dataframe to a file in the folder
     folder_path <- "C:/Users/Gagnondj/Documents/GitHub/Temperature_monitoring/data/Raw/processed/"

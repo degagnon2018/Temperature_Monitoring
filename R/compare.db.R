@@ -3,7 +3,7 @@ library(gulf.data)
 library(dplyr)
 library(purrr)
 
-years <- 2019
+years <- 2023
 
 ## Establish connection -----------------------------------------------------------------------
 #channel <- odbcConnectAccess2007("W:\\Lobster\\Database\\SS_be.mdb")
@@ -59,6 +59,9 @@ if (nrow(unmatched_in_temperature) > 0) {
 } else {
   print("No unmatched rows in temperature.")
 }
+
+excel(unmatched_in_temperature)
+excel(unmatched_in_temperature2)
 
 if (nrow(unmatched_in_temperature2) > 0) {
   print("Unmatched rows in temperature2:")
@@ -146,26 +149,3 @@ if (length(diff_loc) > 0) {
 close(file_conn)
 
 
-
-
-
-#----------------------------------------------------- to delete
-
-# Check if there are any differences
-if (length(diff_loc) > 0) {
-  unique_rows <- unique(diff_loc[, "row"])
-  
-  for (row in unique_rows) {
-    differing_cols <- which(!differences[row, ])
-    differing_col_names <- names(differences)[differing_cols]
-    
-    print(paste("Differences in row", row, "ID:", temperature_common[row, "combined_id"]))
-    for (col_name in differing_col_names) {
-      temp_val <- temperature_common[row, col_name]
-      temp2_val <- temperature2_common[row, col_name]
-      print(paste(col_name, "temperature:", temp_val, "temperature2:", temp2_val))
-    }
-  }
-} else {
-  print("No differences found in the matching rows.")
-}
