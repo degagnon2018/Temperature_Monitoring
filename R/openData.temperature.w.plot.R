@@ -10,7 +10,7 @@ x <- x %>%
   select(site, site_depth__profondeur_site = site.depth.m, log_position__position_sonde = surface.bottom, log_depth__profondeur_sonde = log.depth.m,
          latitude, longitude, year__annee = year, month__mois = month, day__jour = day, temperature, time)
 
-years <- 1995:2021
+years <- 2020:2024
 x <- x %>%
   filter(x$year__annee %in% years)
 
@@ -34,7 +34,7 @@ daily_avg_temp <- x %>%
 # View the resulting dataframe
 #print(daily_avg_temp)
 
-excel(daily_avg_temp)
+#excel(daily_avg_temp)
 
 # Extract the last year from the years vector
 last_year <- max(years)

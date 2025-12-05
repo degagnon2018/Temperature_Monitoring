@@ -5,8 +5,10 @@ library(gulf.data)
 # Establish connection to Access database
 channel <- odbcConnectAccess2007("C:/Users/Gagnondj/Documents/Database/Temperature_be.mdb")
 
+# load the data
 x <- sqlFetch(channel, "All Data")
 
+# format data
 x <- x %>%
   rename(site = 'Site (text)', recorder = Recorder, site.depth.m = 'Site Depth(m)', 
          surface.bottom = 'Surface-Bottom', log.depth.m = 'Log Depth(m)',

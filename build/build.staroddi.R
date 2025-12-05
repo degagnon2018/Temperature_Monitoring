@@ -1,7 +1,7 @@
 #######################################################################################################
 ## Code to process raw  star-Oddi or Starmon temperature recorder files                             ###
-## Code will process files In the "to_process" folder, there should not be any folders, just the     ##
-## files to be processed.                                                                           ###
+## Code will process files In the "to_process" folder, there should not be any folders in this      ###
+## folder, just the files to be processed.                                                          ###                 ###
 #######################################################################################################
 
 library(gulf.data)
@@ -9,24 +9,21 @@ library(openxlsx)
 library(lubridate)
 library(dplyr)
 library(readxl)
+library(here)
 
 # set year of files to be processed
-year = 2023
+    year = 2024
 
-# generated files will be in this folder
-folder_path <- "C:/Users/Gagnondj/Documents/GitHub/Temperature_monitoring/data/Raw/processed/"
-
-# get metadata file
-setwd("C:/Users/Gagnondj/Documents/GitHub/Temperature_monitoring/data/Raw/")
-y <- read.csv("data/Raw/Temp.lookup_R.csv")
-y <- y[y$year == year & !is.na(y$year),]
-
-# convert serial.number to lower case
-y$serial.number <- tolower(y$serial.number)
-
-# create a lookup.site column
-y$lookup.sites <- y$site
-y$lookup.sites <- sub(",.*", "", y$lookup.sites)
+## get metadata file
+    y <- read.csv(here("data","Raw","Temp.lookup_R.csv"))
+    y <- y[y$year == year & !is.na(y$year),]
+    
+    # convert serial.number to lower case
+    y$serial.number <- tolower(y$serial.number)
+    
+    # create a lookup.site column
+    y$lookup.sites <- y$site
+    y$lookup.sites <- sub(",.*", "", y$lookup.sites)
 
 #Set working directory for files to be bind together into one file
 setwd("C:/Users/Gagnondj/Documents/GitHub/Temperature_monitoring/data/Raw/to_process/")
@@ -35,9 +32,7 @@ setwd("C:/Users/Gagnondj/Documents/GitHub/Temperature_monitoring/data/Raw/to_pro
 files = list.files()
 files
 
-# file names in the working directory are validated to insure the year in it's name
-# if the year is not in one of the file name, the script will stop and print an error message
-# if the year is in all the file names, the script will give a positive message and continue
+# file names in the working directory are validated to insure the year is in it's name
 if (length(files) > 0) {
   if (all(grepl(year, files))) {
     print("All files have the year in their name")
@@ -47,12 +42,10 @@ if (length(files) > 0) {
 }
 
 if (length(files) > 0) {
-  # Read CSV files and extract site, SN, and date/time information
   data <- lapply(files, function(file) {
     
-    
     #temp
-    file <- "Indian Rocks PEI 2023 N8 S11248.xlsx"
+    # file <- "Alberton PEI 2024 Hardys Channel collecteurs S11853.xlsx"
     
     # # Remove the file extension
     file_name <- sub("\\.(csv|xlsx)$", "", file)  
@@ -86,95 +79,81 @@ if (length(files) > 0) {
         print(file)
       } else if (grepl("\\.xlsx$", file)) {
         # Read Excel file using readxl package
-        df <- read_xlsx(file) 
+        sheet_to_use <- excel_sheets(file)[1]  # use first sheet
+        df <- tryCatch({ # if readxl doesn't work, use openxlsx
+          readxl::read_xlsx(file)
+        }, error = function(e) {
+          message("readxl failed, trying openxlsx for file: ", file)
+          openxlsx::read.xlsx(file, sheet = 1)
+        })
         print(file)
       }    
       
       #make all variable names lower case
       names(df) <- tolower(names(df))
       
-      # For files with serial numbers starting with 'S'
+      # For files with serial numbers starting with 'S' (for Star Oddi)
       if (grepl("^s", serial.number, ignore.case = TRUE)) {  
     
         # Find the column containing date and time information (star oddi)
         date_time_col <- grep("(?i)date.*time", names(df), value = TRUE)
     
-        # df$datetime <- as.POSIXct(df[[date_time_col]] * 86400, origin = "1899-12-30", tz = "UTC")
-        # 
-        # # Loop through each datetime and adjust if the seconds are 59
-        # for (i in 1:nrow(df)) {
-        #   if (as.integer(format(df$datetime[i], "%S")) == 59) {
-        #     # Add one second to adjust the time
-        #     df$datetime[i] <- df$datetime[i] + 1
-        #   }
-        # }
-        # 
-        # # Extract the date part as a separate column
-        # df$date <- as.Date(df$datetime)
-        
         # Create date and time columns
+        # rename the "date & time"
+        names(df)[names(df) == date_time_col] <- "datetime_excel"
+
+        # format date and time.
         df <- df %>%
           mutate(
-            date = format(`date & time`, "%Y-%m-%d"),
-            time = format(`date & time`, "%I:%M:%S %p")
+            datetime = as.POSIXct(datetime_excel * 86400, origin = "1899-12-30", tz = "UTC"),
+            date     = as.Date(datetime),
+            time     = format(datetime, "%I:%M:%S %p")
           )
+
+        #Change some of the variable names
+        str <- names(df)
+        str[str == "temp.â.c." | str == "temp(°c)" | str == "temp..c."] <- "temperature"
+        str[str == "salinity.psu." | str == "salinity(psu)"] <- "salinity.psu"
+        str[str == "conduct.ms.cm." | str == "conduct(ms/cm)"] <- "conduct.ms.cm"
+        str[str == "sound.velocity.m.sec." | str == "sound velocity(m/sec)" | str == "sound.velocity(m/sec)"] <- "sound.velocity.m.sec"
+        names(df) <- str
         
-      } else if (grepl("^t", serial.number, ignore.case = TRUE)) {
+        #populate recorder variable
+        df$recorder <- paste0("Star-Oddi DST CT")
+        
+        #setting variables to include in output later in code
+        vars <- c("recorder",	"serial.number",	"site",	"site.depth.m",	"surface.bottom",	"log.depth.m",	"latitude",	
+                  "longitude",	"year",	"month",	"day",	"date",	"time",	"temperature", "salinity.psu", "conduct.ms.cm", 
+                  "sound.velocity.m.sec", "buoy.id")
+        
+        
+      } else if (grepl("^t", serial.number, ignore.case = TRUE)) { # files with SN starting with 'T' (for Starmon mini)
         
         # format date
         df$date <- as.Date(df$date)
+        
+        #Change some of the variable names
+        str <- names(df)
+        str[str == "temp.â.c." | str == "temp(°c)"] <- "temperature"
+        names(df) <- str
+        
+        #populate recorder variable
+        df$recorder <- "Starmon Mini"
+        
+        #setting variables to include in output later in code
+        vars <- c("recorder",	"serial.number",	"site",	"site.depth.m",	"surface.bottom",	"log.depth.m",	"latitude",	
+                  "longitude",	"year",	"month",	"day",	"date",	"time",	"temperature", "buoy.id")
       }
     
-
-    
-    #add serial number and site name to appropriate variables
+    # add serial number and site name to appropriate variables
     df$serial.number <- serial.number
     df$site <- site_name
     
-    #extract the year, month and day from the date
+    # extract the year, month and day from the date
      df$year <- year(df$date)
      df$month  <- month(df$date)
      df$day <- day(df$date)
 
-    #add recorder type to recorder variable
-    if (grepl("^s", serial.number, ignore.case = TRUE)) {
-      
-      #Change some of the variable names
-      str <- names(df)
-      str[str == "temp.â.c." | str == "temp(°c)"] <- "temperature"
-      str[str == "salinity.psu." | str == "salinity(psu)"] <- "salinity.psu"
-      str[str == "conduct.ms.cm." | str == "conduct(ms/cm)"] <- "conduct.ms.cm"
-      str[str == "sound.velocity.m.sec." | str == "sound velocity(m/sec)"] <- "sound.velocity.m.sec"
-      names(df) <- str
-      
-      #populate recorder variable
-      df$recorder <- paste0("Star-Oddi DST CT")
-      
-      #setting variables to include in output later in code
-      vars <- c("recorder",	"serial.number",	"site",	"site.depth.m",	"surface.bottom",	"log.depth.m",	"latitude",	
-                "longitude",	"year",	"month",	"day",	"date",	"time",	"temperature", "salinity.psu", "conduct.ms.cm", "sound.velocity.m.sec", "buoy.id")
-      
-    } else if (grepl("^t", serial.number, ignore.case = TRUE)) {
-      
-      #Change some of the variable names
-      str <- names(df)
-      str[str == "temp.â.c." | str == "temp(°c)"] <- "temperature"
-      names(df) <- str
-      
-      #populate recorder variable
-      df$recorder <- "Starmon Mini"
-      
-      #setting variables to include in output later in code
-      vars <- c("recorder",	"serial.number",	"site",	"site.depth.m",	"surface.bottom",	"log.depth.m",	"latitude",	
-                "longitude",	"year",	"month",	"day",	"date",	"time",	"temperature")
-    
-      } else {
-      # Handle the case when the serial number doesn't start with 'S' or 'T'
-      # You can choose to set it to a different value or leave it as is.
-      # For example:
-      # df$recorder <- "Some Other Value"
-    }
-    
      # only keep data for the year being processed, some files may have multi-year data.
      df <- df[df$year == year, ]
 
