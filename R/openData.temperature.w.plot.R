@@ -1,7 +1,13 @@
+## Code prepares data to send to open data 
+
+
 library(gulf.data)
 library(dplyr)
 library(readr)
 library(ggplot2)
+
+# Clear all objects from the environment
+rm(list = ls())
 
 # Load the data from the RDA file created in build.rda.R
 load("temperature.rda") 
@@ -10,7 +16,7 @@ x <- x %>%
   select(site, site_depth__profondeur_site = site.depth.m, log_position__position_sonde = surface.bottom, log_depth__profondeur_sonde = log.depth.m,
          latitude, longitude, year__annee = year, month__mois = month, day__jour = day, temperature, time)
 
-years <- 2020:2024
+years <- 1995:2024 # starts in 1995
 x <- x %>%
   filter(x$year__annee %in% years)
 
@@ -29,7 +35,15 @@ x <- x %>%
 daily_avg_temp <- x %>%
   group_by(site, site_depth__profondeur_site, log_position__position_sonde, log_depth__profondeur_sonde,
            latitude, longitude, year__annee, month__mois, day__jour) %>%
-  summarize(daily_average_temperature__temperature_moyenne_journaliere = round(mean(temperature, na.rm = TRUE), 2), .groups = "drop") 
+  summarize(daily_average_temperature__temperature_moyenne_journaliere = round(mean(temperature, na.rm = TRUE), 2), .groups = "drop") %>%
+  arrange(
+    site,
+    year__annee,
+    month__mois,
+    day__jour,
+    site_depth__profondeur_site,
+  )
+
 
 # View the resulting dataframe
 #print(daily_avg_temp)
@@ -42,13 +56,15 @@ last_year <- max(years)
 # Write to CSV files
 write.csv(daily_avg_temp, file = paste0("request/open.data.temperature.", last_year, ".csv"), row.names = FALSE)
 
-# --------------- Validation ------------------------------------------------------------------
+# ------------------------------------------------------------------------------
+# -- Validation --
+# ------------------------------------------------------------------------------
 
 library(dplyr)
 library(lubridate)
 
 # create a dataframe for bottom probes and one for surface probes
-daily_avg_temp_b <- daily_avg_temp[daily_avg_temp$log_position__position_sonde == "B",]
+daily_avg_temp_b <- daily_avg_temp[daily_avg_temp$log_position__position_sonde %in% c("B", "M"),]
 daily_avg_temp_s <- daily_avg_temp[daily_avg_temp$log_position__position_sonde == "S",]
 
 # Convert year, month, and day to Date format
@@ -141,8 +157,8 @@ x$day_of_year <- yday(x$date)
 pdf("temp_scatter_plots_b.pdf", width = 11, height = 8.5)
 
 # Loop over each site and create a scatter plot for the bottom probes (B)
-for (site in unique(x$site[x$log_position__position_sonde == "B"])) {
-  site_data <- x %>% filter(site == !!site & log_position__position_sonde == "B")
+for (site in unique(x$site[x$log_position__position_sonde %in% c("B", "M")])) {
+  site_data <- x %>% filter(site == !!site & log_position__position_sonde %in% c("B", "M"))
   
   # Create the scatter plot for each site
   gg <- ggplot(site_data, aes(x = day_of_year, y = temperature, color = factor(year__annee))) +
